@@ -7,6 +7,8 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
 class process(stock_data_fetcher):
+    # Train theo dataframe cua tung ma
+    # Khong lay du lieu tu dataloader nay nua ma process se xu ly tu ticker luon (chi lay symbol, trading_date,close)
     def __init__(self, ticker, scaler_path=None):
         stock_data_fetcher.__init__(self, ticker)
         self.scaler = None

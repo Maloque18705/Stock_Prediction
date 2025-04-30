@@ -15,7 +15,7 @@ class Optimizer:
         
         # Chuyển X_train và y_train thành tensor
         self.X_train_tensor = torch.tensor(X_train, dtype=torch.float32).to(device)
-        self.y_train_tensor = torch.tensor(y_train, dtype=torch.float32).to(device).unsqueeze(1)  # Định dạng (batch_size, 1)
+        self.y_train_tensor = torch.tensor(y_train, dtype=torch.float32).to(device).unsqueeze(-1)  # Định dạng (batch_size, 1)
 
         # Dữ liệu TensorDataset và DataLoader
         self.dataset = data.TensorDataset(self.X_train_tensor, self.y_train_tensor)

@@ -8,37 +8,55 @@ from src.train import Trainer
 from src.plot import Plotter
 
 def main():
-    ticker = "TCB" # ["VCB, CTG, BID, TCB, MBB, ACB"]
+    tickers = ["VCB", "CTG", "BID", "TCB", "MBB", "ACB"] #TCB
     start_date = "2023-01-01"
     end_date = "2025-03-01"
  
     sequence_length = 3
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    processor = process(ticker)
-    df = processor.fetch_data(start_date, end_date)
-    df = processor.data_scaling(df, fit=not os.path.exists(processor.scaler_path))
-    
-    valid_start = df.index[sequence_length]
-    valid_end = df.index[-1]
-    if df.empty:
-        print("No data")
-        return
-    
-    window_df = processor.df_to_windowed_df(df, valid_start, valid_end, n=sequence_length)
-    if window_df.empty:
-        print("Create window failed")
-        return
-    
-    dates, X, y = processor.window_df_to_date_X_y(window_df)
+    all_dates, all_X, all_y = [], [], []
 
-    splits = processor.split_data(dates, X, y)
-    if splits is None:
-        print("Split data failed")
-        return
+    for ticker in tickers: 
+
+
+        processor = process(ticker)
+        df = processor.fetch_data(start_date, end_date)
+        df = processor.data_scaling(df, fit=not os.path.exists(processor.scaler_path))
+
+        if df.empty:
+            print("No data")
+            continue
     
-    _, X_train, y_train = splits['train']
-    _, X_test, y_test = splits['test']
+        valid_start = df.index[sequence_length]
+        valid_end = df.index[-1]
+    
+    
+        window_df = processor.df_to_windowed_df(df, valid_start, valid_end, n=sequence_length)
+        if window_df.empty:
+            print("Create window failed")
+            continue
+    
+        dates, X, y = processor.window_df_to_date_X_y(window_df)
+
+        all_dates.extend(dates)
+        all_X.extend(X)
+        all_y.extend(y)
+    
+    if len(all_X) == 0:
+        print("No data available")
+        return
+
+    all_X = np.array(all_X).reshape(-1, sequence_length, 1)
+    all_y = np.array(all_y)
+
+    indices = np.random.permutation(len(all_X))
+    all_X = all_X[indices]
+    all_y = all_y[indices]
+
+    split_idx = int(len(all_X) * 0.8)
+    X_train, y_train = all_X[:split_idx], all_y[:split_idx]
+    X_test, y_test = all_X[split_idx:], all_y[split_idx:]
 
     model = PriceModel(input_size=1)
     optimizer_setup = Optimizer(model, X_train, y_train, batch_size=16, learning_rate=1e-3, device=device)

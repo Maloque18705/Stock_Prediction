@@ -1,31 +1,30 @@
 import torch
 import numpy as np
 import os
-from data.build import process
+import pandas as pd
+from data.process import process
 from src.model import PriceModel
 from src.optimizer import Optimizer
 from src.train import Trainer
 from src.plot import Plotter
 
-def main():
-    tickers = ["VCB", "CTG", "BID", "TCB", "MBB", "ACB"] #TCB
-    start_date = "2023-01-01"
-    end_date = "2025-03-01"
+def main(dataframe):
  
     sequence_length = 3
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     all_dates, all_X, all_y = [], [], []
 
-    for ticker in tickers: 
+    for ticker, ticker_data in dataframe.groupby('ticker'):
+        print(f"Processing ticker : {ticker}")
 
+        processor = process(scaler_path=f"./scalers/{ticker}_scaler.save")
 
-        processor = process(ticker)
-        df = processor.fetch_data(start_date, end_date)
+        df = processor.fetch_data(ticker_data)
         df = processor.data_scaling(df, fit=not os.path.exists(processor.scaler_path))
 
         if df.empty:
-            print("No data")
+            print(f"No data for ticker {ticker}")
             continue
     
         valid_start = df.index[sequence_length]
@@ -79,8 +78,8 @@ def main():
     os.makedirs('./saved_model', exist_ok=True)
     torch.save(model.state_dict(), './saved_model/model.pth')
 
-    plotter = Plotter(model,optimizer_setup.X_train_tensor, y_train, trainer.X_test_tensor, y_test, device)
-    plotter.plot()
-
 if __name__ == "__main__":
-    main()
+    df = pd.read_csv("./misc/CTG_2024_2025.csv")
+    df['ticker'] = 'CTG'
+    df = pd.DataFrame(df)
+    main(df)

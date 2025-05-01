@@ -1,5 +1,5 @@
 from src.model import PriceModel
-from data.build import process
+from data.process import process
 import torch
 import pandas as pd
 import torch.nn as nn
@@ -18,7 +18,15 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path="./sav
 
     # truyen dataframe tu process, khong co fetch_data nua
     try:
-        df = processor.fetch_data("2023-01-01", "2025-04-28")  # lấy toàn bộ dữ liệu có sẵn
+        df = pd.read_csv("./misc/CTG_2024_2025.csv")
+        df = pd.DataFrame(df)
+
+        # Thêm đoạn xử lý thời gian
+        if 'time' in df.columns:
+            df['time'] = pd.to_datetime(df['time'])
+            df.set_index('time', inplace=True)
+        else:
+            df.index = pd.to_datetime(df.index)
     except ValueError as e:
         print(f"Error fetching data: {e}")
         return None
@@ -66,7 +74,7 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path="./sav
 
 if __name__ == "__main__":
     df_future = predict_future(
-        ticker="FPT",
+        ticker="CTG",
         n_days_future=7,
         sequence_length=3,
         model_path="./saved_model/model.pth"

@@ -6,8 +6,11 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-def predict_future(ticker, n_days_future=7, sequence_length=3, model_path="./saved_model/model.pth"):
+def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if model_path is None:
+        model_path = f"./saved_model/{ticker}_model.pth"
 
     model = PriceModel(input_size=1)
     model.load_state_dict(torch.load(model_path, map_location=device))
@@ -76,7 +79,6 @@ if __name__ == "__main__":
     df_future = predict_future(
         ticker="CTG",
         n_days_future=7,
-        sequence_length=3,
-        model_path="./saved_model/model.pth"
+        sequence_length=3
     )
     print(df_future)

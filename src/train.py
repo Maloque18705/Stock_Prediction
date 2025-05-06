@@ -86,7 +86,16 @@ class Trainer:
             test_rmse = torch.sqrt(test_loss).item()
         
         return train_rmse, test_rmse
-        
+
+
+    def predict(self):
+        """Dự đoán trên tập test và trả về y_test_pred."""
+        self.model.eval()
+        with torch.no_grad():
+            y_test_pred = self.model(self.X_test_tensor)
+            return y_test_pred.cpu().numpy()  # Chuyển về NumPy array
+
+
     def save(self, x):
         MODEL_PATH = Path("models")
         MODEL_PATH.mkdir(parents=True, exist_ok=True)

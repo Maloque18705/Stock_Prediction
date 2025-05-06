@@ -4,7 +4,7 @@ import os
 
 # Thông tin cần lấy
 ticker = "FPT"
-start_date = "2023-01-01"
+start_date = "2018-01-01"
 end_date = "2025-03-31"
 interval = "7D"  # Lấy dữ liệu theo ngày
 

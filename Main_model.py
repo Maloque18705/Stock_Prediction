@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 from data.process import process
 from src.model import PriceModel
 from src.optimizer import Optimizer
@@ -18,7 +19,7 @@ def main(dataframe , sequence_length=3):
 
         processor = process(scaler_path=f"./scalers/{ticker}_scaler.save")
 
-        df = pd.read_csv("./misc/FPT_2023-01-01_2025-03-31_7D.csv")
+        df = pd.read_csv("./misc/FPT_2018-01-01_2025-03-31_7D.csv")
         df = pd.DataFrame(df)
 
         # motherfuck CHECKING WHAT??
@@ -94,7 +95,7 @@ def main(dataframe , sequence_length=3):
 
         # Model initiate
         model = PriceModel(input_size=12)
-        optimizer_setup = Optimizer(model, X_train, y_train, batch_size=16, learning_rate=1e-3, device=device)
+        optimizer_setup = Optimizer(model, X_train, y_train, batch_size=16, learning_rate=1e-5, device=device)
 
 
         # Trainer
@@ -114,7 +115,31 @@ def main(dataframe , sequence_length=3):
         print(f"Loss function type in Trainer: {type(trainer.loss_fn)}")
 
         # Start training
-        trainer.train(n_epochs=5000, eval_every=100, patience=10)
+        trainer.train(n_epochs=1000, eval_every=100, patience=10)
+
+        # Predict
+        y_test_pred = trainer.predict()
+
+        # Đảo ngược scaling
+        y_test = processor.inverse_scale(y_test, feature_idx=0)
+        y_test_pred = processor.inverse_scale(y_test_pred, feature_idx=0)
+
+        # Plot
+        plt.figure(figsize=(12, 6))
+        plt.plot(dates_test, y_test, label='Actual Price', color='blue')
+        plt.plot(dates_test, y_test_pred, label='Predicted Price', color='red', linestyle='--')
+        plt.title(f'Actual vs Predicted Prices for {ticker}')
+        plt.xlabel('Date')
+        plt.ylabel('Price')
+        plt.legend()
+        plt.grid(True)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+        # Lưu biểu đồ
+        os.makedirs('./plots', exist_ok=True)
+        plt.savefig(f'./plots/{ticker}_price_prediction.png')
+        plt.close()
 
         # Save model
         os.makedirs('./saved_model', exist_ok=True)

@@ -174,12 +174,12 @@ class process:
     def split_data(self, dates, X, y):
 
         if len(dates) > 0:
-            q_80 = int(len(dates) * 0.8)
-            q_90 = int(len(dates) * 0.9)
+            q_70 = int(len(dates) * 0.7)
+            q_85 = int(len(dates) * 0.85)
 
-            dates_train, X_train, y_train = dates[:q_80], X[:q_80], y[:q_80]
-            dates_val, X_val, y_val = dates[q_80:q_90], X[q_80:q_90], y[q_80:q_90]
-            dates_test, X_test, y_test = dates[q_90:], X[q_90:], y[q_90:]
+            dates_train, X_train, y_train = dates[:q_70], X[:q_70], y[:q_70]
+            dates_val, X_val, y_val = dates[q_70:q_85], X[q_70:q_85], y[q_70:q_85]
+            dates_test, X_test, y_test = dates[q_85:], X[q_85:], y[q_85:]
 
             return {
                 'train': (dates_train, X_train, y_train),

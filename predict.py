@@ -17,11 +17,11 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
     model.to(device)
     model.eval()
 
-    processor = process(ticker)
+    processor = process(scaler_path=f"./scalers/{ticker}_scaler.save")
 
-    # truyen dataframe tu process, khong co fetch_data nua
+    # Read DataFrame
     try:
-        df = pd.read_csv("./misc/CTG_2024_2025.csv")
+        df = pd.read_csv("./misc/FPT_2023-01-01_2025-03-31_7D.csv")
         df = pd.DataFrame(df)
 
         # Thêm đoạn xử lý thời gian
@@ -38,30 +38,41 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
         print("Not enough data to predict.")
         return None
 
-    df = processor.data_scaling(df, fit=False)
+    df = processor.compute_technical_indicators(df)
+    scaled_data = processor.data_scaling(df, fit=False)
+    if scaled_data is None or len(scaled_data) == 0:
+        print("No valid scaled data for prediction.")
+        return None
 
-    last_sequence = df['close'].values[-sequence_length:]  # giả sử cột giá cần dự đoán là 'Close'
-    last_sequence = last_sequence.reshape(1, sequence_length, 1)  # (batch, seq_len, feature)
+    # Tạo DataFrame từ scaled_data
+    features = ['close', 'volume', 'SMA', 'EMA', 'RSI', 'MACD', 
+                'MACD_Signal', 'MACD_Hist', 'BB_High', 'BB_Low', 
+                'Stoch_K', 'Stoch_D']
+    scaled_df = pd.DataFrame(scaled_data, columns=features, index=df.index)
+
+    last_sequence = scaled_df[features].values[-sequence_length:]  # 
+    last_sequence = last_sequence.reshape(1, sequence_length, 12)  # (batch, seq_len, feature)
     last_sequence = torch.tensor(last_sequence, dtype=torch.float32).to(device)
 
     predictions = []
     
-    model.eval()
+    # model.eval()
     for _ in range(n_days_future):
         with torch.no_grad():
-            pred = model(last_sequence)  # đầu ra (batch, 1)
+            pred = model(last_sequence)  # (batch, 1)
             pred_value = pred.item()
             predictions.append(pred_value)
 
         # cập nhật input cho lần dự đoán tiếp theo
         last_sequence = last_sequence.squeeze(0).cpu().numpy()  # (seq_len, feature)
-        last_sequence = np.append(last_sequence, pred_value)
-        last_sequence = last_sequence[-sequence_length:]
-        last_sequence = torch.tensor(last_sequence.reshape(1, sequence_length, 1), dtype=torch.float32).to(device)
+        new_row = last_sequence[-1].copy()  # Lấy hàng cuối
+        new_row[0] = pred_value  #update 'close'
+        last_sequence = np.append(last_sequence[1:], [new_row], axis=0)  # (seq_len, 12)
+        last_sequence = torch.tensor(last_sequence.reshape(1, sequence_length, 12), dtype=torch.float32).to(device)
 
     # Inverse scaling predictions
     predictions = np.array(predictions).reshape(-1, 1)
-    y_pred = processor.inverse_scale(predictions)
+    y_pred = processor.inverse_scale(predictions, features_idx=0)
 
     # Tạo ngày cho dữ liệu dự báo
     last_date = df.index[-1]
@@ -77,7 +88,7 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
 
 if __name__ == "__main__":
     df_future = predict_future(
-        ticker="CTG",
+        ticker="FPT",
         n_days_future=7,
         sequence_length=3
     )

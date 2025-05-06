@@ -8,7 +8,7 @@ Hàm `main(dataframe)` được sử dụng để huấn luyện mô hình dự 
 
 DataFrame truyền vào hàm `main()` phải có định dạng sau:
 
-| trading_date | close | ticker |
+| time         | close | ticker |
 |--------------|-------|--------|
 | 2024-01-02   | 32100 | CTG    |
 | 2024-01-03   | 32300 | CTG    |

@@ -107,7 +107,7 @@ def main(dataframe, ticker):
     print(f"Loss function type in Trainer: {type(trainer.loss_fn)}")
 
     # Start training
-    trainer.train(n_epochs=1000, eval_every=100, patience=10)
+    trainer.train(n_epochs=1200, eval_every=100, patience=10)
 
     # Predict
     y_test_pred = trainer.predict()

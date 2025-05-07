@@ -6,40 +6,51 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
+def predict_future(dataframe, ticker, n_days_future=7, sequence_length=3, model_path=None, scaler_path=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if model_path is None:
         model_path = f"./saved_model/{ticker}_model.pth"
+    if scaler_path is None:
+        scaler_path = f"./scalers/{ticker}_scaler.save"
+    processor = process(scaler_path)
 
-    model = PriceModel(input_size=1)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-
-    processor = process(scaler_path=f"./scalers/{ticker}_scaler.save")
-
+    try: 
+        model = PriceModel(input_size=12, sequence_length=sequence_length, hidden_size=50, num_layers=2, dropout=0.2)
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.to(device)
+        model.eval()
+    except FileNotFoundError:
+        print(f"Model file not found at {model_path}")
+        return None
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return None
+    
     # Read DataFrame
+    df = dataframe.copy()
     try:
-        df = pd.read_csv("./misc/FPT_2023-01-01_2025-03-31_7D.csv")
-        df = pd.DataFrame(df)
-
+        df['time'] = pd.to_datetime(df['time'])
+        df = df.set_index('time')
+        for col in ['volume', 'high', 'low']:
+            if col not in df:
+                df[col] = 0  # Default to 0 if not provided
+        df = df.sort_index()
         # Thêm đoạn xử lý thời gian
         if 'time' in df.columns:
             df['time'] = pd.to_datetime(df['time'])
             df.set_index('time', inplace=True)
-        else:
-            df.index = pd.to_datetime(df.index)
     except ValueError as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error processing dataframe: {e}")
         return None
 
     if df.empty or len(df) <= sequence_length:
         print("Not enough data to predict.")
         return None
 
+
     df = processor.compute_technical_indicators(df)
-    scaled_data = processor.data_scaling(df, fit=False)
+    scaled_data, valid_index = processor.data_scaling(df, fit=False)
     if scaled_data is None or len(scaled_data) == 0:
         print("No valid scaled data for prediction.")
         return None
@@ -48,7 +59,7 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
     features = ['close', 'volume', 'SMA', 'EMA', 'RSI', 'MACD', 
                 'MACD_Signal', 'MACD_Hist', 'BB_High', 'BB_Low', 
                 'Stoch_K', 'Stoch_D']
-    scaled_df = pd.DataFrame(scaled_data, columns=features, index=df.index)
+    scaled_df = pd.DataFrame(scaled_data, columns=features, index=valid_index)
 
     last_sequence = scaled_df[features].values[-sequence_length:]  # 
     last_sequence = last_sequence.reshape(1, sequence_length, 12)  # (batch, seq_len, feature)
@@ -72,7 +83,9 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
 
     # Inverse scaling predictions
     predictions = np.array(predictions).reshape(-1, 1)
-    y_pred = processor.inverse_scale(predictions, features_idx=0)
+    temp = np.zeros((len(predictions), len(features)))
+    temp[:, 0] = predictions.flatten()
+    y_pred = processor.scaler.inverse_transform(temp)[:,0]
 
     # Tạo ngày cho dữ liệu dự báo
     last_date = df.index[-1]
@@ -87,9 +100,11 @@ def predict_future(ticker, n_days_future=7, sequence_length=3, model_path=None):
 
 
 if __name__ == "__main__":
+    df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_7D.csv")
     df_future = predict_future(
-        ticker="FPT",
-        n_days_future=7,
-        sequence_length=3
+        dataframe = df,
+        ticker = "TCB",
+        n_days_future = 7,
+        sequence_length = 3
     )
     print(df_future)

@@ -1,0 +1,6 @@
+numpy==2.1.2
+pandas==2.2.3
+torch==2.6.0
+vnstock==3.2.3
+vnstock_ezchart==0.0.2
+matplotlib==3.10.1

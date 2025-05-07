@@ -1,118 +1,144 @@
-# 📘 Hướng dẫn sử dụng hàm `main()` với một input DataFrame
+# Stock Price Prediction with LSTM
 
-Hàm `main(dataframe)` được sử dụng để huấn luyện mô hình dự đoán giá cổ phiếu dựa trên dữ liệu lịch sử. Để hoạt động đúng, DataFrame cần được chuẩn hóa theo định dạng cụ thể.
+This project implements a Long Short-Term Memory (LSTM) neural network to predict stock prices based on historical data and technical indicators. The system processes stock data, computes technical indicators, trains an LSTM model, and generates predictions, visualized through actual vs. predicted price plots.
 
----
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Project Structure](#project-structure)
+- [Usage](#usage)
+- [Data](#data)
+- [Technical Details](#technical-details)
 
-## ✅ Yêu cầu đầu vào
 
-DataFrame truyền vào hàm `main()` phải có định dạng sau:
+## Overview
+The project fetches stock data from a MinIO storage system, preprocesses it by computing technical indicators (e.g., SMA, EMA, RSI, MACD, Bollinger Bands, Stochastic Oscillator), and uses an LSTM model to predict future stock prices. 
 
-| time         | close | ticker |
-|--------------|-------|--------|
-| 2024-01-02   | 32100 | CTG    |
-| 2024-01-03   | 32300 | CTG    |
-| ...          | ...   | ...    |
+## Features
+- **Data Retrieval**: Fetches stock data from MinIO with configurable time filtering (e.g., last 3 years).
+- **Preprocessing**: Computes technical indicators and creates time-series windows for LSTM input.
+- **Model Training**: Uses an LSTM model with customizable architecture (hidden size, number of layers, dropout).
+- **Visualization**: Plots actual vs. predicted stock prices and saves results as PNG files.
 
-### 📌 Trong đó:
-- `time`: ngày giao dịch (kiểu `datetime` hoặc chuỗi định dạng `YYYY-MM-DD`)
-- `close`: giá đóng cửa trong ngày
-- `ticker`: mã cổ phiếu tương ứng (CTG, VNM, v.v.) — cần thiết để hàm `groupby()` trong `main()` hoạt động đúng
+## Requirements
+- Python 3.8 or higher
+- PyTorch
+- pandas
+- NumPy
+- scikit-learn
+- Optuna
+- Matplotlib
+- TA-Lib (for technical indicators)
+- fastparquet
+- MinIO client (for data access)
 
----
+## Installation
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd stock-price-prediction
+   ```
 
-## ✅ Cách đọc và tiên xử lý file CSV
+2. Create a virtual environment and activate it:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-Giả sử bạn đã tải dữ liệu từ vnstock và có file CSV như sau:
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```python
-import pandas as pd
-from main_model import main  # thay thành tên file của bạn
+4. Install TA-Lib (may require additional setup depending on your system):
+   - Follow instructions at [TA-Lib Installation](https://github.com/TA-Lib/ta-lib-python).
+   - Example for Ubuntu:
+     ```bash
+     sudo apt-get install libta-lib0 libta-lib0-dev
+     pip install TA-Lib
+     ```
 
-# Đọc file
-df = pd.read_csv("./misc/CTG_2024_2025.csv")
+5. Configure MinIO credentials in a `.env` file or environment variables:
+   ```plaintext
+   MINIO_ACCESS_KEY=<your-access-key>
+   MINIO_SECRET_KEY=<your-secret-key>
+   MINIO_ENDPOINT=<your-endpoint-url>
+   BUCKET=<your-bucket-name>
+   ```
 
-# Thêm cột ticker nếu chưa có
-df['ticker'] = 'CTG'
-
-# Gọi hàm main
-main(df)
+## Project Structure
+```
+stock-price-prediction/
+├── main.py                # Main script to run the pipeline
+├── process.py             # Data preprocessing and technical indicator computation
+├── model.py               # LSTM model definition
+├── optimizer.py           # Optimizer and DataLoader setup
+├── train.py               # Training and evaluation logic
+├── scalers/               # Directory to store scaler files
+├── plots/                 # Directory to store prediction plots
+├── models/                # Directory to store trained models
+├── requirements.txt       # Dependencies
+├── README.md              # Project documentation
 ```
 
----
+## Usage
+1. **Prepare Data**:
+   - Ensure stock data is stored in MinIO under `s3a://{BUCKET}/RAW_STOCK_DATA/symbol=<symbol>`.
+   - Data should be in Parquet format with columns: `trading_date`, `close`, `high`, `low`, `volume`.
+   - Changing input inside "Main_model.py", in "__main__", under 'df' variable.
 
-## ✅ Dữ liệu nhiều mã cổ phiếu
+2. **Output**:
+   - Scaler files saved in `./scalers/`.
+   - Trained model checkpoints saved in `./models/`.
+   - Prediction plots saved in `./plots/` (e.g., `FPT_price_prediction.png`).
 
-Nếu bạn dử đoán nhiều mã (CTG, VNM, VCB...), DataFrame cần có dạng sau:
+## Hyperparameter 
+- `batch_size`: [16]
+- `learning_rate`: [1e-5] (log scale)
+- `hidden_size`: [25]
+- `num_layers`: [2]
+- `dropout`: [0.2,
 
-| time         | close | ticker |
-|--------------|-------|--------|
-| 2024-01-02   | 32100 | CTG    |
-| 2024-01-02   | 72000 | VNM    |
-| 2024-01-02   | 91500 | VCB    |
 
----
+## Data
+- **Source**: Stock data stored in MinIO.
+- **Format**: Parquet files with columns `trading_date`, `close`, etc.
+- **Time Range**: Default is the last 3 years, configurable in `get_data`.
+- **Preprocessing**:
+  - Technical indicators (SMA, EMA, RSI, MACD, Bollinger Bands, Stochastic Oscillator) computed with TA-Lib.
+  - Data scaled using MinMaxScaler and saved for reuse.
+  - Time-series windows created with sequence length of 3 days.
 
-## ⚠️ Lưu ý quan trọng
+## Technical Details
+### Optimizer Class (`optimizer.py`)
+The `Optimizer` class configures the training setup:
+- **Initialization**:
+  - Validates input shapes: `X_train` (samples, seq_len, input_size), `y_train` (samples,).
+  - Moves model and data to specified device (CPU or CUDA).
+  - Uses Adam optimizer with configurable `learning_rate` (default: 1e-3).
+  - Uses Mean Squared Error (MSE) as the loss function.
+- **DataLoader**:
+  - Creates batches with `batch_size` (default: 16) and shuffles data for training.
 
-- Cột `time` sẽ được dùng làm **index thời gian** trong pipeline.
-- Cố gắng đảm bảo các giá trị `close` là số thực (float/int)
-- Nếu bạn dùng DataFrame tự tạo, đảm bảo có đủ:
-  - Cột `close`
-  - Cột thời gian tên là `time` hoặc index đã được chuyển sang datetime
+### Main Pipeline (`main.py`)
+- Fetches data for a single stock symbol.
+- Preprocesses data (cleaning, technical indicators, scaling, windowing).
+- Optimizes hyperparameters using Optuna.
+- Trains the LSTM model with early stopping (patience: 50 epochs).
+- Generates predictions and visualizes results.
 
----
+### Model Architecture
+- **LSTM**:
+  - Input size: 12 (number of features, e.g., close, volume, technical indicators).
+  - Hidden size: Configurable (default: 32).
+  - Number of layers: Configurable (default: 2).
+  - Dropout: Configurable (default: 0.2).
+- **Output**: Predicts the next day's closing price.
 
-## 🔧 Tùy chỉnh khác
-
-Muốn thay đổi số ngày quan sát (sequence), chỉnh tham số sau trong `main()`:
-
-```python
-sequence_length = 3  # có thể thay = 5 hoặc 10
-```
-
----
-
-## 📁 Thư mục quan trọng
-
-- `CTG_2024_2025.csv` : file dữ liệu dầu vào
-- `main_model.py` : chứa hàm `main()`
-- `data/process.py` : chứa class `process`
-- `./scalers/` : thư mục lưu scaler đã fit theo mã
-- `./saved_model/` : thư mục lưu model
-
----
-
-## 🧪 Chạy demo nhanh
-
-```bash
-python3 main_model.py
-```
----
-
-## 📥 Cách sử dụng `predict_future()`
-
-```python
-from predict import predict_future
-
-df_result = predict_future(
-    ticker="CTG",                 # Mã cổ phiếu
-    n_days_future=7,              # Số ngày muốn dự báo
-    sequence_length=3,           # Độ dài chuỗi lịch sử dùng làm đầu vào
-    model_path="./saved_model/model.pth"   # Đường dẫn mô hình đã huấn luyện
-)
-
-print(df_result)
-```
-
-### 📤 Kết quả
-
-Hàm sẽ trả về một `DataFrame` có dạng:
-
-| date       | predicted_price |
-|------------|-----------------|
-| 2025-04-01 | 26.45           |
-| 2025-04-02 | 26.73           |
-| ...        | ...             |
-
----
+### Training
+- **Epochs**: Up to 1000, with early stopping based on validation RMSE.
+- **Evaluation**: Train and validation RMSE computed every 100 epochs.
+- **Loss Function**: MSE.
+- **Optimizer**: Adam.

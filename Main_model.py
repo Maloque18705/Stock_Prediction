@@ -19,11 +19,10 @@ def main(dataframe , sequence_length=3):
 
         processor = process(scaler_path=f"./scalers/{ticker}_scaler.save")
 
-        df = pd.read_csv("./misc/FPT_2018-01-01_2025-03-31_7D.csv")
+        df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_7D.csv")
         df = pd.DataFrame(df)
 
-        # motherfuck CHECKING WHAT??
-        # Kiểm tra cột cần thiết
+        # CHECKING??
         required_cols = ['close', 'volume', 'high', 'low']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
@@ -46,7 +45,7 @@ def main(dataframe , sequence_length=3):
         else:
             df.index = pd.to_datetime(df.index)
 
-        # END OF FUCKING CHECK
+        # END OF CHECK
 
 
         df = processor.compute_technical_indicators(df)
@@ -147,7 +146,7 @@ def main(dataframe , sequence_length=3):
         torch.save(model.state_dict(), model_save_path)
 
 if __name__ == "__main__":
-    df = pd.read_csv("./misc/FPT_2023-01-01_2025-03-31_7D.csv")
-    df['ticker'] = 'FPT'
+    df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_7D.csv")
+    df['ticker'] = 'TCB'
     df = pd.DataFrame(df)
     main(df, sequence_length=3)

@@ -1,10 +1,10 @@
-from vnstock import Vnstock
+from vnstock import Vnstock 
 import pandas as pd
 import os
 
 # Thông tin cần lấy
-ticker = "FPT"
-start_date = "2018-01-01"
+ticker = "TCB"
+start_date = "2015-01-01"
 end_date = "2025-03-31"
 interval = "7D"  # Lấy dữ liệu theo ngày
 

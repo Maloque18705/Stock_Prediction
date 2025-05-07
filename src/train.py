@@ -62,6 +62,7 @@ class Trainer:
                 train_metric, test_metric = self.evaluate(epoch)
                 print(f"Epoch {epoch}: Train Loss = {avg_train_loss:.6f}, Train RMSE = {train_metric:.4f}, Test RMSE = {test_metric:.4f}")
 
+            
             # #Early stopping
             # val_loss = test_metric
             # if val_loss < best_val_loss:

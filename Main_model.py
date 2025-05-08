@@ -139,6 +139,6 @@ def main(dataframe, ticker):
     torch.save(model.state_dict(), model_save_path)
 
 if __name__ == "__main__":
-    df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_7D.csv")
+    df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_1D.csv")
     symbol = "TCB"
     main(df, ticker=symbol)

@@ -6,7 +6,7 @@ import os
 ticker = "TCB"
 start_date = "2015-01-01"
 end_date = "2025-03-31"
-interval = "7D"  # Lấy dữ liệu theo ngày
+interval = "1D"  # Lấy dữ liệu theo ngày
 
 # Lấy dữ liệu
 stock = Vnstock().stock(ticker)

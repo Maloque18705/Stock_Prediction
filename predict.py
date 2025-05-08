@@ -6,7 +6,7 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-def predict_future(dataframe, ticker, n_days_future=7, sequence_length=3, model_path=None, scaler_path=None):
+def predict_future(dataframe, ticker, n_days_future, sequence_length=3, model_path=None, scaler_path=None, holidays=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if model_path is None:
@@ -36,10 +36,6 @@ def predict_future(dataframe, ticker, n_days_future=7, sequence_length=3, model_
             if col not in df:
                 df[col] = 0  # Default to 0 if not provided
         df = df.sort_index()
-        # Thêm đoạn xử lý thời gian
-        if 'time' in df.columns:
-            df['time'] = pd.to_datetime(df['time'])
-            df.set_index('time', inplace=True)
     except ValueError as e:
         print(f"Error processing dataframe: {e}")
         return None
@@ -55,7 +51,7 @@ def predict_future(dataframe, ticker, n_days_future=7, sequence_length=3, model_
         print("No valid scaled data for prediction.")
         return None
 
-    # Tạo DataFrame từ scaled_data
+    # Create DataFrame from scaled_data
     features = ['close', 'volume', 'SMA', 'EMA', 'RSI', 'MACD', 
                 'MACD_Signal', 'MACD_Hist', 'BB_High', 'BB_Low', 
                 'Stoch_K', 'Stoch_D']
@@ -87,12 +83,34 @@ def predict_future(dataframe, ticker, n_days_future=7, sequence_length=3, model_
     temp[:, 0] = predictions.flatten()
     y_pred = processor.scaler.inverse_transform(temp)[:,0]
 
+    # Process Holidays
+    holiday_dates = []
+    if holidays is not None:
+        try:
+            for holiday in holidays:
+                if isinstance(holiday, str):
+                    holiday = pd.to_datetime(holiday)
+                elif not isinstance(holiday, (datetime, pd.Timestamp)):
+                    raise ValueError(f"Invalid format. Use 'YYYY-MM-DD' or datetime")
+                holiday_dates.append(holiday)
+        except Exception as e:
+            print(f"Error processing holidays: {e}")
+            return None
+
     # Tạo ngày cho dữ liệu dự báo
     last_date = df.index[-1]
-    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_days_future, freq='B')  # 'B' = business days
+    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), 
+                                 periods=n_days_future*2, 
+                                 freq='B')  # 'B' = business days
+
+    business_days = [date for date in future_dates if date not in holiday_dates]
+    if len(business_days) < n_days_future:
+        print(f"Not enough business days after excluding holidays")
+        return None
+    business_days = business_days[:n_days_future]
 
     result_df = pd.DataFrame({
-        "date": future_dates,
+        "date": business_days,
         "predicted_price": y_pred.flatten()
     })
 
@@ -100,11 +118,15 @@ def predict_future(dataframe, ticker, n_days_future=7, sequence_length=3, model_
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_7D.csv")
+    df = pd.read_csv("./misc/TCB_2015-01-01_2025-03-31_1D.csv")
+
+    holidays = []    
+
     df_future = predict_future(
         dataframe = df,
         ticker = "TCB",
-        n_days_future = 7,
-        sequence_length = 3
+        n_days_future = 14,
+        sequence_length = 3,
+        holidays=holidays
     )
     print(df_future)

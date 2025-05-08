@@ -5,7 +5,6 @@ import joblib
 from ta.trend import SMAIndicator, EMAIndicator, MACD
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-from data.dataloader import stock_data_fetcher
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 

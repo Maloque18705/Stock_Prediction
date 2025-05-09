@@ -3,8 +3,8 @@ import pandas as pd
 import os
 
 # Thông tin cần lấy
-ticker = "TCB"
-start_date = "2015-01-01"
+ticker = "CTG"
+start_date = "2010-01-01"
 end_date = "2025-03-31"
 interval = "1D"  # Lấy dữ liệu theo ngày
 

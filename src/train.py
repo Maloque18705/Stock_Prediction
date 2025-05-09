@@ -1,109 +1,91 @@
 import torch
 import numpy as np
-from pathlib import Path
 
 class Trainer:
-    def __init__(self, model, optimizer, loss_fn, loader,
-                 X_train_tensor, y_train_tensor,
-                 X_test, y_test, device='cuda'):
+    def __init__(self, model, optimizer, loss_fn, loader, X_train_tensor, y_train_tensor, X_val, y_val, X_test, y_test, device, patience=15, eval_every=10):
         self.model = model.to(device)
-        self.optimizer = optimizer
+        self.optimizer = optimizer  # Đây là optimizer PyTorch (torch.optim.Adam)
+        self.scheduler = optimizer.scheduler if hasattr(optimizer, 'scheduler') else None
         self.loss_fn = loss_fn
         self.loader = loader
-        self.device = device
-
-
-        # Kiểm tra dữ liệu rỗng
-        if len(X_train_tensor) == 0 or len(y_train_tensor) == 0:
-            raise ValueError("Empty train dataset")
-        if len(X_test) == 0 or len(y_test) == 0:
-            raise ValueError("Empty test dataset")
-
-        # Kiểm tra shape
-        if len(X_train_tensor.shape) != 3:
-            raise ValueError(f"X_train_tensor must have shape (samples, seq_len, input_size), nhận được {X_train_tensor.shape}")
-        if len(X_test.shape) != 3:
-            raise ValueError(f"X_test must have shape (samples, seq_len, input_size), nhận được {X_test.shape}")
-
-        
-        
-        self.X_train_tensor = X_train_tensor.to(self.device)
-        self.y_train_tensor = y_train_tensor.to(self.device)
-
+        self.X_train_tensor = X_train_tensor
+        self.y_train_tensor = y_train_tensor
+        self.X_val_tensor = torch.tensor(X_val, dtype=torch.float32).to(device)
+        self.y_val_tensor = torch.tensor(y_val, dtype=torch.float32).to(device).unsqueeze(1)
         self.X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
         self.y_test_tensor = torch.tensor(y_test, dtype=torch.float32).to(device).unsqueeze(1)
+        self.device = device
+        self.patience = patience
+        self.eval_every = eval_every
 
-    def train(self, n_epochs=1000, eval_every=100, patience=10):
-        best_val_loss = float('inf')
-        epochs_no_improve = 0
+    def train(self, n_epochs):
+        best_val_rmse = float('inf')
+        patience_counter = 0
+        best_model_state = None
 
         for epoch in range(n_epochs):
             self.model.train()
-            total_loss = 0
-            num_batches = 0
-
-
-            for X_batch, y_batch in self.loader:
-                X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
-                
-                y_pred = self.model(X_batch)
-                loss = self.loss_fn(y_pred, y_batch)
-
+            train_loss = 0.0
+            for batch_X, batch_y in self.loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                 self.optimizer.zero_grad()
+                outputs = self.model(batch_X)
+                loss = self.loss_fn(outputs, batch_y)
                 loss.backward()
                 self.optimizer.step()
-
-                total_loss += loss.item()
-                num_batches += 1
+                train_loss += loss.item() * batch_X.size(0)
             
-            avg_train_loss = total_loss / num_batches
+            train_loss /= len(self.loader.dataset)
+            train_rmse = np.sqrt(train_loss)
 
-            if epoch % eval_every == 0 or epoch == n_epochs-1:
-                train_metric, test_metric = self.evaluate(epoch)
-                print(f"Epoch {epoch}: Train Loss = {avg_train_loss:.6f}, Train RMSE = {train_metric:.4f}, Test RMSE = {test_metric:.4f}")
+            # Evaluate on validation set
+            self.model.eval()
+            with torch.no_grad():
+                val_outputs = self.model(self.X_val_tensor)
+                val_loss = self.loss_fn(val_outputs, self.y_val_tensor).item()
+                val_rmse = np.sqrt(val_loss)
 
-            
-            # #Early stopping
-            # val_loss = test_metric
-            # if val_loss < best_val_loss:
-            #     best_val_loss = val_loss
-            #     epochs_no_improve = 0
-            #     self.save(f"best_model_epoch_{epoch}.pth")
-            # else:
-            #     epochs_no_improve += 1
-            #     if epochs_no_improve >= patience:
-            #         print(f"Early stopping at epoch {epoch}")
-            #         break
+            # Update scheduler
+            if self.scheduler:
+                old_lr = self.optimizer.param_groups[0]['lr']
+                self.scheduler.step(val_rmse)
+                new_lr = self.optimizer.param_groups[0]['lr']
+                if new_lr != old_lr:
+                    print(f"Epoch {epoch}: Learning rate reduced from {old_lr} to {new_lr}")
 
-    def evaluate(self, epoch):
+            # Evaluate on test set for reporting
+            with torch.no_grad():
+                test_outputs = self.model(self.X_test_tensor)
+                test_loss = self.loss_fn(test_outputs, self.y_test_tensor).item()
+                test_rmse = np.sqrt(test_loss)
+
+            if epoch % self.eval_every == 0:
+                print(f"Epoch {epoch}: Train Loss = {train_loss:.6f}, Train RMSE = {train_rmse:.4f}, Val RMSE = {val_rmse:.4f}, Test RMSE = {test_rmse:.4f}")
+
+            # Early Stopping
+            if val_rmse < best_val_rmse:
+                best_val_rmse = val_rmse
+                best_model_state = self.model.state_dict()
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= self.patience:
+                    print(f"Early stopping at epoch {epoch}. Best Val RMSE: {best_val_rmse:.4f}")
+                    self.model.load_state_dict(best_model_state)
+                    break
+
+        # Final evaluation on test set
         self.model.eval()
         with torch.no_grad():
-            y_train_pred = self.model(self.X_train_tensor)
-            train_loss = self.loss_fn(y_train_pred, self.y_train_tensor)
-            train_rmse = torch.sqrt(train_loss).item()
+            test_outputs = self.model(self.X_test_tensor)
+            test_loss = self.loss_fn(test_outputs, self.y_test_tensor).item()
+            test_rmse = np.sqrt(test_loss)
+        print(f"Final Test RMSE: {test_rmse:.4f}")
 
-            y_test_pred = self.model(self.X_test_tensor)
-            test_loss = self.loss_fn(y_test_pred, self.y_test_tensor)
-            test_rmse = torch.sqrt(test_loss).item()
-        
-        return train_rmse, test_rmse
-
+        return best_val_rmse
 
     def predict(self):
-        """Dự đoán trên tập test và trả về y_test_pred."""
         self.model.eval()
         with torch.no_grad():
-            y_test_pred = self.model(self.X_test_tensor)
-            return y_test_pred.cpu().numpy()  # Chuyển về NumPy array
-
-
-    def save(self, x):
-        MODEL_PATH = Path("models")
-        MODEL_PATH.mkdir(parents=True, exist_ok=True)
-
-        MODEL_NAME = x
-        MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
-
-        print(f"Saving model to : {MODEL_SAVE_PATH}")
-        torch.save(obj=self.model.state_dict(),
-                f=MODEL_SAVE_PATH)
+            predictions = self.model(self.X_test_tensor).cpu().numpy()  # Sửa lỗi cú pháp
+        return predictions

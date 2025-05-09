@@ -13,12 +13,12 @@ class Trainer:
         self.device = device
 
         self.X_train_tensor = X_train_tensor.to(device)
-        self.y_train_tensor = y_train_tensor.to(device).unsqueeze(1)
+        self.y_train_tensor = y_train_tensor.to(device)
 
         self.X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
-        self.y_test_tensor = torch.tensor(y_test, dtype=torch.float32).to(device).unsqueeze(1)
+        self.y_test_tensor = torch.tensor(y_test, dtype=torch.float32).to(device).unsqueeze(-1)
 
-    def train(self, n_epochs=5000, eval_every=100):
+    def train(self, n_epochs=100, eval_every=10):
         for epoch in range(n_epochs):
             self.model.train()
             total_loss=0
